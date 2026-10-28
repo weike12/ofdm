@@ -1,0 +1,166 @@
+experiment:
+  name: sds_ufd_jscc_div2k_stageC
+  # Keep the failed 8000-11560 run intact for diagnosis and prevent an old bad
+  # checkpoint from being selected accidentally.
+  output_dir: runs/div2k_stageC_sds_ufd
+  seed: 42
+  amp: true
+  # Old checkpoints use an incompatible objective/optimizer state. The loader
+  # keeps their model weights and starts the revised optimizer/scaler afresh.
+  amp_settings:
+    init_scale: 1
+    growth_interval: 10000
+
+device: cuda
+
+data:
+  train:
+    name: DIV2K
+    root: datasets/DIV2K/DIV2K_train_HR
+    crop_size: 256
+    batch_size: 8
+    num_workers: 8
+
+model:
+  backbone:
+    type: swinjscc
+    repo_path: third_party/SwinJSCC
+    factory: si_fdjscc.integrations.official_swinjscc:build_official_swinjscc
+    factory_kwargs: {image_size: 256, model_size: base, latent_channels: 96, model_variant: SwinJSCC_w/o_SAandRA}
+    latent_channels: 96
+    latent_layout: bmc
+    encode_method: encoder
+    decode_method: decoder
+    encode_kwargs: {snr: 10, rate: 96, model: SwinJSCC_w/o_SAandRA}
+    decode_kwargs: {snr: 10, model: SwinJSCC_w/o_SAandRA}
+    resolution_downsample: 4
+  importance_head: {hidden_channels: 48, temperature: 0.5, channel_feature_dim: 11}
+  complex_adapter: {normalize_power: true, restore_scale: false}
+
+ofdm:
+  n_fft: 64
+  n_cp: 16
+  occupied_carrier_count: 52
+  pilot_carriers: [-21, -7, 7, 21]
+  channel_taps: 8
+  tau: 2.0
+  equalizer: mmse
+
+mapper:
+  mode: proposed_ufd
+  frequency_bands: 4
+  diversity_levels: [3, 4, 4]
+  high_quantile: 0.80
+  mid_quantile: 0.50
+  quality_weight: 1.0
+  correlation_weight: 1.0
+  importance_correlation_gain: 1.0
+
+# Full late-stage distribution. Earlier curriculum phases override these values.
+channel_train:
+  snr_db_range: [0, 20]
+  csi_modes: [perfect, imperfect]
+  csi_nmse_db_choices: [-30, -20, -10]
+  n_channel_draws: 4
+  spectral_notch_probability: 0.25
+  spectral_notch: {start: random, width_range: [8, 12], attenuation_db_range: [15, 25]}
+
+curriculum:
+  enabled: true
+  phases:
+    - name: warmup_perfect_high_snr
+      until_step: 2000
+      channel:
+        snr_db_range: [10, 20]
+        csi_modes: [perfect]
+        spectral_notch_probability: 0.0
+      n_channel_draws: 1
+      loss_scales: {importance: 0.5, latent: 0.0, tail: 0.0}
+    - name: bridge_imperfect
+      until_step: 16000
+      channel:
+        snr_db_range: [0, 20]
+        csi_modes: [perfect, imperfect]
+        csi_nmse_db_choices: [-30, -20]
+        spectral_notch_probability: 0.10
+      n_channel_draws: 2
+      loss_scales: {importance: 1.0, latent: 0.5, tail: 0.0}
+    - name: transition_low_snr_four_draws
+      until_step: 30000
+      channel:
+        snr_db_range: [0, 20]
+        csi_modes: [perfect, imperfect]
+        csi_nmse_db_choices: [-30, -20, -10]
+      n_channel_draws: 4
+      loss_scales: {importance: 1.0, latent: 0.75, tail: 0.75}
+    - name: robust_full
+      until_step: 80000
+      channel:
+        snr_db_range: [0, 20]
+        csi_modes: [perfect, imperfect]
+        csi_nmse_db_choices: [-30, -20, -10]
+      n_channel_draws: 4
+      loss_scales: {importance: 1.0, latent: 1.0, tail: 1.0}
+
+loss:
+  lambda_mse: 1.0
+  lambda_msssim: 0.1
+  clamp_reconstruction: true
+  lambda_anchor: 2.0
+  lambda_range: 0.05
+  lambda_imp: 0.10
+  lambda_rank: 0.10
+  importance_objective: log_smooth_l1
+  sensitivity_epsilon: 1.0e-8
+  lambda_lat: 0.02
+  lambda_tail: 0.20
+  cvar_alpha: 0.80
+  minimum_cvar_draws: 4
+  target_temperature: 0.5
+  rank_pairs: 1024
+
+sensitivity_label:
+  method: hybrid
+  ablation_every: 4
+  tokens_per_batch: 8
+  attenuation: 0.0
+  # Gradient x feature is an auxiliary approximation, never the primary label.
+  gradient_auxiliary_scale: 0.10
+
+optimizer:
+  name: AdamW
+  lr: 2.0e-7
+  backbone_lr: 2.0e-7
+  importance_lr: 1.0e-5
+  other_lr: 2.0e-7
+  weight_decay: 1.0e-4
+  grad_clip: 0.25
+
+divergence_guard:
+  enabled: true
+  window_size: 100
+  check_every: 50
+  warmup_steps: 100
+  growth_factor: 4.0
+  absolute_threshold: 0.20
+  anchor_growth_factor: 4.0
+  anchor_absolute_threshold: 0.02
+  patience: 3
+  raw_abs_limit: 5.0
+
+# A single Inf gradient is normally GradScaler probing a larger safe scale.
+# Stop only when overflows persist or become frequent.
+amp_overflow_guard:
+  enabled: true
+  max_consecutive: 8
+  window_size: 100
+  max_in_window: 20
+  min_observations: 20
+  max_fraction: 0.20
+
+training:
+  version: v2
+  init_checkpoint: runs/div2k_stageB_sds/stage_b_final.pt
+  max_steps: 80000
+  log_every: 20
+  save_every: 500

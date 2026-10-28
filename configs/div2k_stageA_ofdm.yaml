@@ -1,0 +1,86 @@
+experiment:
+  name: div2k_stageA_sds_ufd
+  output_dir: runs/div2k_stageA_sds_ufd
+  seed: 42
+  amp: true
+
+device: cuda
+
+data:
+  train:
+    name: DIV2K
+    root: datasets/DIV2K/DIV2K_train_HR
+    crop_size: 256
+    batch_size: 8
+    num_workers: 8
+  test:
+    name: Kodak
+    root: datasets/Kodak
+    batch_size: 1
+    num_workers: 2
+
+model:
+  backbone:
+    type: swinjscc
+    repo_path: third_party/SwinJSCC
+    factory: si_fdjscc.integrations.official_swinjscc:build_official_swinjscc
+    factory_kwargs:
+      image_size: 256
+      model_size: base
+      latent_channels: 96
+      model_variant: SwinJSCC_w/o_SAandRA
+    checkpoint: third_party/SwinJSCC/pretrained/SwinJSCC_wo_SAandRA_AWGN_HRimage_snr10_psnr_C96.model
+    strict_checkpoint: true
+    latent_channels: 96
+    latent_layout: bmc
+    encode_method: encoder
+    decode_method: decoder
+    encode_kwargs: {snr: 10, rate: 96, model: SwinJSCC_w/o_SAandRA}
+    decode_kwargs: {snr: 10, model: SwinJSCC_w/o_SAandRA}
+    resolution_downsample: 4
+  importance_head:
+    hidden_channels: 48
+    temperature: 0.5
+    channel_feature_dim: 11
+  complex_adapter:
+    normalize_power: true
+    restore_scale: false
+
+ofdm:
+  n_fft: 64
+  n_cp: 16
+  occupied_carrier_count: 52
+  pilot_carriers: [-21, -7, 7, 21]
+  channel_taps: 8
+  tau: 2.0
+  equalizer: mmse
+
+mapper:
+  mode: sequential
+  frequency_bands: 4
+  diversity_levels: [1, 2, 4]
+  high_quantile: 0.80
+  mid_quantile: 0.50
+  quality_weight: 1.0
+  correlation_weight: 1.0
+  importance_correlation_gain: 1.0
+
+channel_train:
+  snr_db_range: [0, 20]
+  csi_modes: [perfect]
+  n_channel_draws: 1
+
+loss:
+  lambda_mse: 1.0
+  lambda_msssim: 0.0
+
+optimizer:
+  name: AdamW
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  grad_clip: 1.0
+
+training:
+  max_steps: 300000
+  log_every: 50
+  save_every: 5000

@@ -1,0 +1,14 @@
+# Install a PyTorch build matching the server CUDA version first, then run:
+#   pip install -r requirements.txt
+torch>=1.12
+torchvision>=0.13
+PyYAML>=6.0
+Pillow>=9.0
+numpy>=1.23
+tqdm>=4.64
+timm>=0.4.12
+pytorch-msssim>=1.0
+lpips>=0.1.4
+scipy>=1.9
+matplotlib>=3.6
+pytest>=7.0

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+runs/
+datasets/
+third_party/
+*.pt
+*.pth
+*.model
+.docx_render/
+.codex_tmp/
+/snr_*_update_*.zip
+

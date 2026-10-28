@@ -1,0 +1,99 @@
+experiment:
+  name: eval_kodak
+  seed: 42
+  amp: false
+device: cuda
+data:
+  test:
+    name: Kodak
+    root: datasets/Kodak
+    batch_size: 1
+    num_workers: 2
+model:
+  backbone:
+    type: swinjscc
+    repo_path: third_party/SwinJSCC
+    factory: si_fdjscc.integrations.official_swinjscc:build_official_swinjscc
+    factory_kwargs:
+      image_size: 256
+      model_size: base
+      latent_channels: 96
+      model_variant: SwinJSCC_w/o_SAandRA
+    latent_channels: 96
+    latent_layout: bmc
+    encode_method: encoder
+    decode_method: decoder
+    encode_kwargs:
+      snr: 10
+      rate: 96
+      model: SwinJSCC_w/o_SAandRA
+    decode_kwargs:
+      snr: 10
+      model: SwinJSCC_w/o_SAandRA
+    resolution_downsample: 4
+  importance_head:
+    hidden_channels: 48
+    temperature: 0.5
+    channel_feature_dim: 11
+  complex_adapter:
+    normalize_power: true
+    restore_scale: false
+ofdm:
+  n_fft: 64
+  n_cp: 16
+  occupied_carrier_count: 52
+  pilot_carriers:
+  - -21
+  - -7
+  - 7
+  - 21
+  channel_taps: 8
+  tau: 2.0
+  equalizer: mmse
+mapper:
+  mode: greedy
+  frequency_bands: 4
+  diversity_levels: [3, 4, 4]
+  high_quantile: 0.8
+  mid_quantile: 0.5
+  quality_weight: 1.0
+  correlation_weight: 1.0
+  importance_correlation_gain: 1.0
+evaluation:
+  checkpoint: runs/div2k_stageC_sds_ufd/stage_c_final.pt
+  output_dir: runs/eval_kodak_token_energy
+  seed: 3000
+  deterministic: true
+  mapper_modes:
+  - sequential
+  - random
+  - greedy
+  - greedy_token_random
+  - greedy_token_energy
+  snr_db:
+  - 10
+  csi_nmse_db:
+  - -10
+  selectivity:
+  - n_taps: 8
+    tau: 2.0
+  spectral_notches:
+  - null
+  - start: random
+    width_range:
+    - 8
+    - 12
+    attenuation_db_range:
+    - 15
+    - 25
+  channel_realizations: 20
+  draw_chunk_size: 1
+  outage_threshold: 25.0
+  compute_msssim: true
+  compute_lpips: true
+  compute_mapping_risk_metrics: true
+  compute_energy_metrics: true
+  compute_symbol_residual_metrics: true
+  progress_every_images: 4
+  mapper_csi_source: estimated
+  receiver_csi_source: temporal_mean

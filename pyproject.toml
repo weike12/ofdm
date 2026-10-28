@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "si-fdjscc"
+version = "0.1.0"
+description = "Channel-conditioned SDS and unequal frequency-dispersion JSCC prototype"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "torch>=1.12",
+  "torchvision>=0.13",
+  "PyYAML>=6.0",
+  "Pillow>=9.0",
+  "numpy>=1.23",
+  "tqdm>=4.64",
+]
+
+[project.optional-dependencies]
+metrics = ["pytorch-msssim>=1.0", "lpips>=0.1.4", "scipy>=1.9"]
+swin = ["timm>=0.4.12"]
+plots = ["matplotlib>=3.6"]
+dev = ["pytest>=7.0", "ruff>=0.5"]
+
+[project.scripts]
+sdsufdjscc-stage-a = "si_fdjscc.train.stage_a:main"
+sdsufdjscc-stage-b = "si_fdjscc.train.stage_b:main"
+sdsufdjscc-stage-c = "si_fdjscc.train.stage_c:main"
+sdsufdjscc-eval = "si_fdjscc.evaluation.evaluate:main"
+sifdjscc-stage-a = "si_fdjscc.train.stage_a:main"
+sifdjscc-stage-b = "si_fdjscc.train.stage_b:main"
+sifdjscc-stage-c = "si_fdjscc.train.stage_c:main"
+sifdjscc-eval = "si_fdjscc.evaluation.evaluate:main"
+
+[tool.setuptools.packages.find]
+include = ["si_fdjscc*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
